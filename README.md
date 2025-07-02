@@ -1,5 +1,5 @@
-# 🏠 Apartment Expense & Meal Tracker
 
+<<<<<<< HEAD
 A comprehensive web application for shared apartment expense tracking and meal consumption management with persistent database storage.
 
 ## ✨ Features
@@ -268,3 +268,5 @@ This application is designed to be self-sufficient, but if you need help:
 ---
 
 **Enjoy tracking your shared apartment expenses! 🏠💰**
+=======
+>>>>>>> a0a9c28c54b3dbc17a6b0264e7646fd3a4303b6d
