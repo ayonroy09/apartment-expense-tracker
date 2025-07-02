@@ -156,6 +156,37 @@ class ApiService {
       body: JSON.stringify({ passcode: adminPasscode, amount, description }),
     });
   }
+
+  async getAdminMeals(passcode: string, month: number, year: number): Promise<ApiResponse<Array<{
+    id: number;
+    date: string;
+    count: number;
+    created_at: string;
+    member_name: string;
+  }>>> {
+    return this.request('/admin/meals', {
+      method: 'POST',
+      body: JSON.stringify({ passcode, month, year }),
+    });
+  }
+
+  async deleteMeal(mealId: number, adminPasscode: string): Promise<ApiResponse> {
+    return this.request(`/admin/meals/${mealId}?passcode=${adminPasscode}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateMeal(
+    mealId: number,
+    date: string,
+    count: number,
+    adminPasscode: string
+  ): Promise<ApiResponse> {
+    return this.request(`/admin/meals/${mealId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ passcode: adminPasscode, date, count }),
+    });
+  }
 }
 
 export const apiService = new ApiService();

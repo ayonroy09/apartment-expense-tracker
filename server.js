@@ -314,6 +314,75 @@ app.post('/api/admin/expenses', authenticateAdmin, (req, res) => {
   });
 });
 
+// Get all meals for admin (detailed view)
+app.post('/api/admin/meals', authenticateAdmin, (req, res) => {
+  const { month, year } = req.body;
+  
+  if (!month || !year) {
+    return res.status(400).json({ error: 'Month and year are required' });
+  }
+
+  const mealsQuery = `
+    SELECT 
+      meals.id,
+      meals.date,
+      meals.count,
+      meals.created_at,
+      m.name as member_name
+    FROM meals
+    JOIN members m ON meals.member_id = m.id
+    WHERE meals.month = ? AND meals.year = ?
+    ORDER BY meals.date DESC, meals.created_at DESC
+  `;
+
+  db.all(mealsQuery, [month, year], (err, meals) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to fetch meals' });
+    }
+    res.json({ success: true, data: meals || [] });
+  });
+});
+
+// Delete meal (admin only)
+app.delete('/api/admin/meals/:id', (req, res) => {
+  const { passcode } = req.query;
+  
+  if (passcode !== 'Admin2024*') {
+    return res.status(401).json({ error: 'Admin access required' });
+  }
+
+  const query = 'DELETE FROM meals WHERE id = ?';
+  
+  db.run(query, [req.params.id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to delete meal' });
+    }
+    res.json({ success: true });
+  });
+});
+
+// Update meal (admin only)
+app.put('/api/admin/meals/:id', (req, res) => {
+  const { passcode, date, count } = req.body;
+  
+  if (passcode !== 'Admin2024*') {
+    return res.status(401).json({ error: 'Admin access required' });
+  }
+
+  if (!date || !count) {
+    return res.status(400).json({ error: 'Date and count are required' });
+  }
+
+  const query = 'UPDATE meals SET date = ?, count = ? WHERE id = ?';
+  
+  db.run(query, [date, count, req.params.id], function(err) {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to update meal' });
+    }
+    res.json({ success: true });
+  });
+});
+
 // Get all months with data
 app.get('/api/admin/months', (req, res) => {
   const query = `

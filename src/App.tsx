@@ -75,7 +75,15 @@ export default function App() {
     created_at: string;
     member_name: string;
   }> | null>(null);
+  const [adminMeals, setAdminMeals] = useState<Array<{
+    id: number;
+    date: string;
+    count: number;
+    created_at: string;
+    member_name: string;
+  }> | null>(null);
   const [editingExpense, setEditingExpense] = useState<{id: number, amount: number, description: string} | null>(null);
+  const [editingMeal, setEditingMeal] = useState<{id: number, date: string, count: number} | null>(null);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
 
   const monthOptions = generateMonthOptions();
@@ -142,13 +150,15 @@ export default function App() {
     try {
       console.log(`Loading admin data for ${month}/${year}`);
       
-      const [summaryResult, expensesResult] = await Promise.all([
+      const [summaryResult, expensesResult, mealsResult] = await Promise.all([
         apiService.getAdminSummary('Admin2024*', month, year),
-        apiService.getAdminExpenses('Admin2024*', month, year)
+        apiService.getAdminExpenses('Admin2024*', month, year),
+        apiService.getAdminMeals('Admin2024*', month, year)
       ]);
       
       console.log('Summary result:', summaryResult);
       console.log('Expenses result:', expensesResult);
+      console.log('Meals result:', mealsResult);
       
       if (summaryResult.success && summaryResult.data) {
         // Additional frontend deduplication for safety
@@ -176,12 +186,20 @@ export default function App() {
         setAdminExpenses([]);
       }
       
+      if (mealsResult.success && mealsResult.data) {
+        setAdminMeals(mealsResult.data);
+      } else {
+        console.error('Failed to load meals:', mealsResult.error);
+        setAdminMeals([]);
+      }
+      
       setAdminDataLoaded(true);
     } catch (err) {
       console.error('Admin data loading error:', err);
       setError('Failed to load admin data');
       setAdminData(null);
       setAdminExpenses(null);
+      setAdminMeals(null);
       setAdminDataLoaded(true);
     } finally {
       setLoading(false);
@@ -248,8 +266,10 @@ export default function App() {
     setMemberData(null);
     setAdminData(null);
     setAdminExpenses(null);
+    setAdminMeals(null);
     setError(null);
     setEditingExpense(null);
+    setEditingMeal(null);
     setAdminDataLoaded(false);
     // Reset to current month
     setSelectedMonth(currentDate.getMonth() + 1);
@@ -261,6 +281,7 @@ export default function App() {
     setSelectedMonth(month);
     setSelectedYear(year);
     setEditingExpense(null); // Clear any editing state
+    setEditingMeal(null); // Clear any editing state
     await loadAdminDataForMonth(month, year);
   };
 
@@ -294,6 +315,41 @@ export default function App() {
       }
     } catch (err) {
       setError('Failed to update expense');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteMeal = async (mealId: number) => {
+    if (!confirm('Are you sure you want to delete this meal entry?')) return;
+    
+    setLoading(true);
+    try {
+      const result = await apiService.deleteMeal(mealId, 'Admin2024*');
+      if (result.success) {
+        await loadAdminDataForMonth(selectedMonth, selectedYear);
+      } else {
+        setError(result.error || 'Failed to delete meal');
+      }
+    } catch (err) {
+      setError('Failed to delete meal');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateMeal = async (mealId: number, date: string, count: number) => {
+    setLoading(true);
+    try {
+      const result = await apiService.updateMeal(mealId, date, count, 'Admin2024*');
+      if (result.success) {
+        setEditingMeal(null);
+        await loadAdminDataForMonth(selectedMonth, selectedYear);
+      } else {
+        setError(result.error || 'Failed to update meal');
+      }
+    } catch (err) {
+      setError('Failed to update meal');
     } finally {
       setLoading(false);
     }
@@ -807,6 +863,121 @@ export default function App() {
                         </div>
                       ) : (
                         <p className="text-gray-500 text-center py-4">No expenses recorded for this month</p>
+                      )}       
+                    </CardContent>
+                  </Card>
+
+                  {/* Meal Management */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg font-semibold">Meal Management</CardTitle>
+                      <CardDescription>
+                        View, edit, and delete meal entries for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {adminMeals && adminMeals.length > 0 ? (
+                        <div className="space-y-3">
+                          {adminMeals.map((meal) => (
+                            <div key={`meal-${meal.id}`} className="p-4 border rounded-lg">
+                              {editingMeal?.id === meal.id ? (
+                                <div className="space-y-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                      <Label>Date</Label>
+                                      <Input
+                                        type="date"
+                                        value={editingMeal.date}
+                                        onChange={(e) => setEditingMeal({
+                                          ...editingMeal,
+                                          date: e.target.value
+                                        })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Meal Count</Label>
+                                      <Select 
+                                        value={editingMeal.count.toString()} 
+                                        onValueChange={(value) => setEditingMeal({
+                                          ...editingMeal,
+                                          count: parseInt(value)
+                                        })}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="1">1 Meal</SelectItem>
+                                          <SelectItem value="2">2 Meals</SelectItem>
+                                          <SelectItem value="3">3 Meals</SelectItem>
+                                          <SelectItem value="4">4 Meals</SelectItem>
+                                          <SelectItem value="5">5 Meals</SelectItem>
+                                          <SelectItem value="6">6 Meals</SelectItem>
+                                          <SelectItem value="7">7 Meals</SelectItem>
+                                          <SelectItem value="8">8 Meals</SelectItem>
+                                          <SelectItem value="9">9 Meals</SelectItem>
+                                          <SelectItem value="10">10 Meals</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      size="sm" 
+                                      onClick={() => handleUpdateMeal(meal.id, editingMeal.date, editingMeal.count)}
+                                      disabled={loading}
+                                    >
+                                      Save Changes
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => setEditingMeal(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <span className="font-semibold text-lg">{meal.count} Meal{meal.count !== 1 ? 's' : ''}</span>
+                                      <Badge variant="outline">{meal.member_name}</Badge>
+                                    </div>
+                                    <p className="text-gray-600 mb-1">{new Date(meal.date).toLocaleDateString()}</p>
+                                    <p className="text-xs text-gray-500">
+                                      Added on {new Date(meal.created_at).toLocaleDateString()} at {new Date(meal.created_at).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setEditingMeal({
+                                        id: meal.id,
+                                        date: meal.date,
+                                        count: meal.count
+                                      })}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteMeal(meal.id)}
+                                      disabled={loading}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-4">No meals recorded for this month</p>
                       )}
                     </CardContent>
                   </Card>
