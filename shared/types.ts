@@ -46,7 +46,7 @@ export interface AppData {
 
 export const INITIAL_MEMBERS: Member[] = [
   { id: "1", name: "S.M Kayes Zaman", passcode: "Kayes2024!" },
-  { id: "2", name: "Arafat Hossain", passcode: "Arafat2024@" },
+  { id: "2", name: "Arafat Zaman", passcode: "Arafat2024@" },
   { id: "3", name: "Ayon Roy", passcode: "Ayon2024#" },
   { id: "4", name: "Rashed Khan", passcode: "Rashed2024$" },
   { id: "5", name: "Protik Sarker Opu", passcode: "Protik2024%" }

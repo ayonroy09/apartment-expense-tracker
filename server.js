@@ -73,7 +73,7 @@ function initializeDatabase() {
   const insertInitialMembers = `
     INSERT OR REPLACE INTO members (id, name, passcode) VALUES
     (1, 'S.M Kayes Zaman', 'Kayes2024!'),
-    (2, 'Arafat Hossain', 'Arafat2024@'),
+    (2, 'Arafat Zaman', 'Arafat2024@'),
     (3, 'Ayon Roy', 'Ayon2024#'),
     (4, 'Rashed Khan', 'Rashed2024$'),
     (5, 'Protik Sarker Opu', 'Protik2024%')

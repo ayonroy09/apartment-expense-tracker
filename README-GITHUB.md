@@ -28,9 +28,9 @@
 ## 🔑 Default Passcodes
 
 ### Members
-- **S.M Kayes Zaman**: `kayes2024`
-- **Arafat Hossain**: `arafat2024`  
-- **Ayon Roy**: `ayon2024`
+- **S.M Kayes Zaman**: `Kayes2024!`
+- **Arafat Zaman**: `Arafat2024@`  
+- **Ayon Roy**: `Ayon2024#`
 - **Rashed Khan**: `rashed2024`
 - **Protik Sarker Opu**: `protik2024`
 
