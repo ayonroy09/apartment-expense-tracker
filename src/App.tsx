@@ -137,15 +137,34 @@ export default function App() {
   const loadAdminDataForMonth = async (month: number, year: number) => {
     setLoading(true);
     setAdminDataLoaded(false);
+    setError(null); // Clear any previous errors
+    
     try {
+      console.log(`Loading admin data for ${month}/${year}`);
+      
       const [summaryResult, expensesResult] = await Promise.all([
         apiService.getAdminSummary('Admin2024*', month, year),
         apiService.getAdminExpenses('Admin2024*', month, year)
       ]);
       
+      console.log('Summary result:', summaryResult);
+      console.log('Expenses result:', expensesResult);
+      
       if (summaryResult.success && summaryResult.data) {
-        setAdminData(summaryResult.data);
+        // Additional frontend deduplication for safety
+        const uniqueMembers = summaryResult.data.members.filter((member: any, index: number, self: any[]) => 
+          index === self.findIndex(m => m.id === member.id)
+        );
+        
+        const cleanedData = {
+          ...summaryResult.data,
+          members: uniqueMembers
+        };
+        
+        console.log('Setting admin data with', uniqueMembers.length, 'unique members');
+        setAdminData(cleanedData);
       } else {
+        console.error('Failed to load summary:', summaryResult.error);
         setError(summaryResult.error || 'Failed to load admin summary');
         setAdminData(null);
       }
@@ -153,12 +172,13 @@ export default function App() {
       if (expensesResult.success && expensesResult.data) {
         setAdminExpenses(expensesResult.data);
       } else {
-        setError(expensesResult.error || 'Failed to load expenses');
-        setAdminExpenses(null);
+        console.error('Failed to load expenses:', expensesResult.error);
+        setAdminExpenses([]);
       }
       
       setAdminDataLoaded(true);
     } catch (err) {
+      console.error('Admin data loading error:', err);
       setError('Failed to load admin data');
       setAdminData(null);
       setAdminExpenses(null);
@@ -643,8 +663,13 @@ export default function App() {
                     <CardContent>
                       <div className="space-y-4">
                         {adminData.members && adminData.members.length > 0 ? (
-                          adminData.members.map((member) => (
-                            <div key={`member-${member.id}`} className="p-4 border rounded-lg">
+                          // Remove any potential duplicates on frontend as well
+                          adminData.members
+                            .filter((member, index, self) => 
+                              index === self.findIndex(m => m.id === member.id)
+                            )
+                            .map((member) => (
+                            <div key={`member-${member.id}-${member.name.replace(/\s+/g, '-').toLowerCase()}`} className="p-4 border rounded-lg">
                               <div className="flex justify-between items-start mb-3">
                                 <h3 className="font-semibold text-lg">{member.name}</h3>
                                 <Badge 

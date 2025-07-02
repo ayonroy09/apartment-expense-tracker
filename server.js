@@ -30,8 +30,8 @@ function initializeDatabase() {
   const createMembersTable = `
     CREATE TABLE IF NOT EXISTS members (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      passcode TEXT NOT NULL,
+      name TEXT NOT NULL UNIQUE,
+      passcode TEXT NOT NULL UNIQUE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `;
@@ -63,19 +63,27 @@ function initializeDatabase() {
     )
   `;
 
+  // Clean up any potential duplicates and insert/update members
+  const cleanupDuplicates = `
+    DELETE FROM members WHERE id NOT IN (
+      SELECT MIN(id) FROM members GROUP BY name
+    )
+  `;
+  
   const insertInitialMembers = `
-    INSERT OR IGNORE INTO members (name, passcode) VALUES
-    ('S.M Kayes Zaman', 'Kayes2024!'),
-    ('Arafat Hossain', 'Arafat2024@'),
-    ('Ayon Roy', 'Ayon2024#'),
-    ('Rashed Khan', 'Rashed2024$'),
-    ('Protik Sarker Opu', 'Protik2024%')
+    INSERT OR REPLACE INTO members (id, name, passcode) VALUES
+    (1, 'S.M Kayes Zaman', 'Kayes2024!'),
+    (2, 'Arafat Hossain', 'Arafat2024@'),
+    (3, 'Ayon Roy', 'Ayon2024#'),
+    (4, 'Rashed Khan', 'Rashed2024$'),
+    (5, 'Protik Sarker Opu', 'Protik2024%')
   `;
 
   db.serialize(() => {
     db.run(createMembersTable);
     db.run(createExpensesTable);
     db.run(createMealsTable);
+    db.run(cleanupDuplicates);
     db.run(insertInitialMembers);
   });
 }
@@ -220,16 +228,25 @@ app.post('/api/admin/summary', authenticateAdmin, (req, res) => {
   }
 
   const summaryQuery = `
-    SELECT 
+    SELECT DISTINCT
       m.id,
       m.name,
-      COALESCE(SUM(e.amount), 0) as total_expenses,
-      COALESCE(SUM(meals.count), 0) as total_meals
+      COALESCE(expense_totals.total_expenses, 0) as total_expenses,
+      COALESCE(meal_totals.total_meals, 0) as total_meals
     FROM members m
-    LEFT JOIN expenses e ON m.id = e.member_id AND e.month = ? AND e.year = ?
-    LEFT JOIN meals ON m.id = meals.member_id AND meals.month = ? AND meals.year = ?
-    GROUP BY m.id, m.name
-    ORDER BY m.name
+    LEFT JOIN (
+      SELECT member_id, SUM(amount) as total_expenses
+      FROM expenses 
+      WHERE month = ? AND year = ?
+      GROUP BY member_id
+    ) expense_totals ON m.id = expense_totals.member_id
+    LEFT JOIN (
+      SELECT member_id, SUM(count) as total_meals
+      FROM meals 
+      WHERE month = ? AND year = ?
+      GROUP BY member_id
+    ) meal_totals ON m.id = meal_totals.member_id
+    ORDER BY m.id
   `;
 
   db.all(summaryQuery, [month, year, month, year], (err, results) => {
@@ -241,14 +258,20 @@ app.post('/api/admin/summary', authenticateAdmin, (req, res) => {
     const totalMeals = results.reduce((sum, member) => sum + member.total_meals, 0);
     const costPerMeal = totalMeals > 0 ? totalExpenses / totalMeals : 0;
 
-    const memberSummaries = results.map(member => ({
-      id: member.id,
-      name: member.name,
-      totalExpenses: member.total_expenses,
-      totalMeals: member.total_meals,
-      mealCost: member.total_meals * costPerMeal,
-      balance: member.total_expenses - (member.total_meals * costPerMeal)
-    }));
+    // Ensure no duplicates by using a Map with member ID as key
+    const memberMap = new Map();
+    results.forEach(member => {
+      memberMap.set(member.id, {
+        id: member.id,
+        name: member.name,
+        totalExpenses: member.total_expenses || 0,
+        totalMeals: member.total_meals || 0,
+        mealCost: (member.total_meals || 0) * costPerMeal,
+        balance: (member.total_expenses || 0) - ((member.total_meals || 0) * costPerMeal)
+      });
+    });
+    
+    const memberSummaries = Array.from(memberMap.values()).sort((a, b) => a.id - b.id);
 
     res.json({
       success: true,
