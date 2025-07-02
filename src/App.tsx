@@ -81,7 +81,7 @@ export default function App() {
     count: number;
     created_at: string;
     member_name: string;
-  }> | null>(null);
+  }>>([]);
   const [editingExpense, setEditingExpense] = useState<{id: number, amount: number, description: string} | null>(null);
   const [editingMeal, setEditingMeal] = useState<{id: number, date: string, count: number} | null>(null);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
@@ -190,7 +190,7 @@ export default function App() {
         setAdminMeals(mealsResult.data);
       } else {
         console.error('Failed to load meals:', mealsResult.error);
-        setAdminMeals([]);
+        setAdminMeals([]); // Set to empty array instead of null
       }
       
       setAdminDataLoaded(true);
@@ -198,8 +198,8 @@ export default function App() {
       console.error('Admin data loading error:', err);
       setError('Failed to load admin data');
       setAdminData(null);
-      setAdminExpenses(null);
-      setAdminMeals(null);
+      setAdminExpenses([]);
+      setAdminMeals([]);
       setAdminDataLoaded(true);
     } finally {
       setLoading(false);
@@ -266,7 +266,7 @@ export default function App() {
     setMemberData(null);
     setAdminData(null);
     setAdminExpenses(null);
-    setAdminMeals(null);
+    setAdminMeals([]);
     setError(null);
     setEditingExpense(null);
     setEditingMeal(null);
@@ -876,7 +876,7 @@ export default function App() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {adminMeals && adminMeals.length > 0 ? (
+                      {adminMeals.length > 0 ? (
                         <div className="space-y-3">
                           {adminMeals.map((meal) => (
                             <div key={`meal-${meal.id}`} className="p-4 border rounded-lg">
