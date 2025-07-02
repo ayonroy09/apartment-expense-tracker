@@ -45,14 +45,14 @@ export interface AppData {
 }
 
 export const INITIAL_MEMBERS: Member[] = [
-  { id: "1", name: "S.M Kayes Zaman", passcode: "kayes2024" },
-  { id: "2", name: "Arafat Hossain", passcode: "arafat2024" },
-  { id: "3", name: "Ayon Roy", passcode: "ayon2024" },
-  { id: "4", name: "Rashed Khan", passcode: "rashed2024" },
-  { id: "5", name: "Protik Sarker Opu", passcode: "protik2024" }
+  { id: "1", name: "S.M Kayes Zaman", passcode: "Kayes2024!" },
+  { id: "2", name: "Arafat Hossain", passcode: "Arafat2024@" },
+  { id: "3", name: "Ayon Roy", passcode: "Ayon2024#" },
+  { id: "4", name: "Rashed Khan", passcode: "Rashed2024$" },
+  { id: "5", name: "Protik Sarker Opu", passcode: "Protik2024%" }
 ];
 
-export const ADMIN_PASSCODE = "admin2024";
+export const ADMIN_PASSCODE = "Admin2024*";
 
 // Currency formatting for BDT
 export const formatCurrency = (amount: number): string => {
@@ -64,11 +64,10 @@ export const generateMonthOptions = (): Array<{value: string, label: string}> =>
   const options: Array<{value: string, label: string}> = [];
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1; // 1-based month
   
-  // Generate options for 2 years: previous year, current year, next year
-  for (let year = currentYear - 1; year <= currentYear + 1; year++) {
-    for (let month = 1; month <= 12; month++) {
+  // Generate options for 3 years: previous year, current year, next year
+  for (let year = currentYear + 1; year >= currentYear - 1; year--) { // Start from next year and go backwards
+    for (let month = 12; month >= 1; month--) { // Start from December and go backwards
       const date = new Date(year, month - 1, 1);
       const value = `${month}-${year}`;
       const label = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
@@ -76,5 +75,5 @@ export const generateMonthOptions = (): Array<{value: string, label: string}> =>
     }
   }
   
-  return options.reverse(); // Most recent first
+  return options; // Already in descending order (most recent first)
 };

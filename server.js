@@ -65,11 +65,11 @@ function initializeDatabase() {
 
   const insertInitialMembers = `
     INSERT OR IGNORE INTO members (name, passcode) VALUES
-    ('S.M Kayes Zaman', 'kayes2024'),
-    ('Arafat Hossain', 'arafat2024'),
-    ('Ayon Roy', 'ayon2024'),
-    ('Rashed Khan', 'rashed2024'),
-    ('Protik Sarker Opu', 'protik2024')
+    ('S.M Kayes Zaman', 'Kayes2024!'),
+    ('Arafat Hossain', 'Arafat2024@'),
+    ('Ayon Roy', 'Ayon2024#'),
+    ('Rashed Khan', 'Rashed2024$'),
+    ('Protik Sarker Opu', 'Protik2024%')
   `;
 
   db.serialize(() => {
@@ -104,7 +104,7 @@ function authenticateMember(req, res, next) {
 function authenticateAdmin(req, res, next) {
   const { passcode } = req.body || req.query;
   
-  if (passcode !== 'admin2024') {
+  if (passcode !== 'Admin2024*') {
     return res.status(401).json({ error: 'Invalid admin passcode' });
   }
   next();
@@ -315,7 +315,7 @@ app.get('/api/admin/months', (req, res) => {
 app.delete('/api/admin/expenses/:id', (req, res) => {
   const { passcode } = req.query;
   
-  if (passcode !== 'admin2024') {
+  if (passcode !== 'Admin2024*') {
     return res.status(401).json({ error: 'Admin access required' });
   }
 
@@ -333,7 +333,7 @@ app.delete('/api/admin/expenses/:id', (req, res) => {
 app.put('/api/admin/expenses/:id', (req, res) => {
   const { passcode, amount, description } = req.body;
   
-  if (passcode !== 'admin2024') {
+  if (passcode !== 'Admin2024*') {
     return res.status(401).json({ error: 'Admin access required' });
   }
 

@@ -54,7 +54,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Current month and year (fixed for members, selectable for admin)
+  // Get current month and year as defaults
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -76,6 +76,7 @@ export default function App() {
     member_name: string;
   }> | null>(null);
   const [editingExpense, setEditingExpense] = useState<{id: number, amount: number, description: string} | null>(null);
+  const [adminDataLoaded, setAdminDataLoaded] = useState(false);
 
   const monthOptions = generateMonthOptions();
 
@@ -85,12 +86,13 @@ export default function App() {
     setLoading(true);
 
     try {
-      if (loginPasscode === 'admin2024') {
+      if (loginPasscode === 'Admin2024*') {
         const result = await apiService.loginAdmin(loginPasscode);
         if (result.success) {
           setIsAdmin(true);
           setLoginPasscode('');
-          await loadAdminData();
+          // Load admin data immediately after successful login
+          await loadAdminDataForMonth(selectedMonth, selectedYear);
         } else {
           setError(result.error || 'Invalid admin passcode');
         }
@@ -103,7 +105,8 @@ export default function App() {
             passcode: loginPasscode
           });
           setLoginPasscode('');
-          await loadMemberData();
+          // Load member data for current month only
+          await loadMemberDataForCurrentMonth(loginPasscode);
         } else {
           setError(result.error || 'Invalid passcode');
         }
@@ -115,17 +118,14 @@ export default function App() {
     }
   };
 
-  const loadMemberData = async () => {
-    if (!currentUser) return;
-    
+  const loadMemberDataForCurrentMonth = async (passcode: string) => {
     setLoading(true);
     try {
-      // Members always use current month
-      const result = await apiService.getMemberData(currentUser.passcode, selectedMonth, selectedYear);
+      const result = await apiService.getMemberData(passcode, selectedMonth, selectedYear);
       if (result.success && result.data) {
         setMemberData(result.data);
       } else {
-        setError(result.error || 'Failed to load data');
+        setError(result.error || 'Failed to load member data');
       }
     } catch (err) {
       setError('Failed to load member data');
@@ -134,29 +134,35 @@ export default function App() {
     }
   };
 
-  const loadAdminData = async () => {
-    if (!isAdmin) return;
-    
+  const loadAdminDataForMonth = async (month: number, year: number) => {
     setLoading(true);
+    setAdminDataLoaded(false);
     try {
       const [summaryResult, expensesResult] = await Promise.all([
-        apiService.getAdminSummary('admin2024', selectedMonth, selectedYear),
-        apiService.getAdminExpenses('admin2024', selectedMonth, selectedYear)
+        apiService.getAdminSummary('Admin2024*', month, year),
+        apiService.getAdminExpenses('Admin2024*', month, year)
       ]);
       
       if (summaryResult.success && summaryResult.data) {
         setAdminData(summaryResult.data);
       } else {
-        setError(summaryResult.error || 'Failed to load admin data');
+        setError(summaryResult.error || 'Failed to load admin summary');
+        setAdminData(null);
       }
       
       if (expensesResult.success && expensesResult.data) {
         setAdminExpenses(expensesResult.data);
       } else {
-        setError(expensesResult.error || 'Failed to load expenses data');
+        setError(expensesResult.error || 'Failed to load expenses');
+        setAdminExpenses(null);
       }
+      
+      setAdminDataLoaded(true);
     } catch (err) {
       setError('Failed to load admin data');
+      setAdminData(null);
+      setAdminExpenses(null);
+      setAdminDataLoaded(true);
     } finally {
       setLoading(false);
     }
@@ -179,7 +185,7 @@ export default function App() {
       if (result.success) {
         setExpenseAmount('');
         setExpenseDescription('');
-        await loadMemberData();
+        await loadMemberDataForCurrentMonth(currentUser.passcode);
       } else {
         setError(result.error || 'Failed to add expense');
       }
@@ -205,7 +211,7 @@ export default function App() {
       );
       
       if (result.success) {
-        await loadMemberData();
+        await loadMemberDataForCurrentMonth(currentUser.passcode);
       } else {
         setError(result.error || 'Failed to add meal');
       }
@@ -221,15 +227,21 @@ export default function App() {
     setIsAdmin(false);
     setMemberData(null);
     setAdminData(null);
+    setAdminExpenses(null);
     setError(null);
     setEditingExpense(null);
+    setAdminDataLoaded(false);
+    // Reset to current month
+    setSelectedMonth(currentDate.getMonth() + 1);
+    setSelectedYear(currentDate.getFullYear());
   };
 
   const handleAdminMonthYearChange = async (value: string) => {
     const [month, year] = value.split('-').map(Number);
     setSelectedMonth(month);
     setSelectedYear(year);
-    await loadAdminData();
+    setEditingExpense(null); // Clear any editing state
+    await loadAdminDataForMonth(month, year);
   };
 
   const handleDeleteExpense = async (expenseId: number) => {
@@ -237,9 +249,9 @@ export default function App() {
     
     setLoading(true);
     try {
-      const result = await apiService.deleteExpense(expenseId, 'admin2024');
+      const result = await apiService.deleteExpense(expenseId, 'Admin2024*');
       if (result.success) {
-        await loadAdminData();
+        await loadAdminDataForMonth(selectedMonth, selectedYear);
       } else {
         setError(result.error || 'Failed to delete expense');
       }
@@ -253,10 +265,10 @@ export default function App() {
   const handleUpdateExpense = async (expenseId: number, amount: number, description: string) => {
     setLoading(true);
     try {
-      const result = await apiService.updateExpense(expenseId, amount, description, 'admin2024');
+      const result = await apiService.updateExpense(expenseId, amount, description, 'Admin2024*');
       if (result.success) {
         setEditingExpense(null);
-        await loadAdminData();
+        await loadAdminDataForMonth(selectedMonth, selectedYear);
       } else {
         setError(result.error || 'Failed to update expense');
       }
@@ -271,15 +283,6 @@ export default function App() {
   useEffect(() => {
     setError(null);
   }, [currentUser, isAdmin]);
-
-  // Load data on mount and when month/year changes for admin
-  useEffect(() => {
-    if (isAdmin) {
-      loadAdminData();
-    } else if (currentUser) {
-      loadMemberData();
-    }
-  }, [selectedMonth, selectedYear]);
 
   // Login screen
   if (!currentUser && !isAdmin) {
@@ -441,6 +444,10 @@ export default function App() {
                         <SelectItem value="4">4 Meals</SelectItem>
                         <SelectItem value="5">5 Meals</SelectItem>
                         <SelectItem value="6">6 Meals</SelectItem>
+                        <SelectItem value="7">7 Meals</SelectItem>
+                        <SelectItem value="8">8 Meals</SelectItem>
+                        <SelectItem value="9">9 Meals</SelectItem>
+                        <SelectItem value="10">10 Meals</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -556,7 +563,11 @@ export default function App() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={`${selectedMonth}-${selectedYear}`} onValueChange={handleAdminMonthYearChange}>
+              <Select 
+                value={`${selectedMonth}-${selectedYear}`} 
+                onValueChange={handleAdminMonthYearChange}
+                disabled={loading}
+              >
                 <SelectTrigger className="w-full md:w-64">
                   <SelectValue />
                 </SelectTrigger>
@@ -568,6 +579,9 @@ export default function App() {
                   ))}
                 </SelectContent>
               </Select>
+              {loading && (
+                <p className="text-sm text-gray-500 mt-2">Loading data...</p>
+              )}
             </CardContent>
           </Card>
 
@@ -580,189 +594,202 @@ export default function App() {
             </Alert>
           )}
 
-          {adminData && (
+          {/* Show data only when loaded */}
+          {adminDataLoaded && (
             <>
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(adminData.totalExpenses)}</div>
-                  </CardContent>
-                </Card>
+              {adminData ? (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(adminData.totalExpenses)}</div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Meals</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{adminData.totalMeals}</div>
-                  </CardContent>
-                </Card>
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Meals</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{adminData.totalMeals}</div>
+                      </CardContent>
+                    </Card>
 
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Cost Per Meal</CardTitle>
-                    <Calculator className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatCurrency(adminData.costPerMeal)}</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Member Summary */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold">Member Summary</CardTitle>
-                  <CardDescription>
-                    Individual breakdown for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {adminData.members.map((member) => (
-                      <div key={member.id} className="p-4 border rounded-lg">
-                        <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-semibold text-lg">{member.name}</h3>
-                          <Badge 
-                            variant={member.balance >= 0 ? "default" : "destructive"}
-                            className="ml-2"
-                          >
-                            {member.balance >= 0 ? "Credit" : "Owes"} {formatCurrency(Math.abs(member.balance))}
-                          </Badge>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600">Expenses:</span>
-                            <p className="font-medium">{formatCurrency(member.totalExpenses)}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Meals:</span>
-                            <p className="font-medium">{member.totalMeals}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Meal Cost:</span>
-                            <p className="font-medium">{formatCurrency(member.mealCost)}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Balance:</span>
-                            <p className={`font-medium ${member.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {member.balance >= 0 ? '+' : ''}{formatCurrency(member.balance)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Cost Per Meal</CardTitle>
+                        <Calculator className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{formatCurrency(adminData.costPerMeal)}</div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
 
-              {/* Expense Management */}
-              {adminExpenses && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold">Expense Management</CardTitle>
-                    <CardDescription>
-                      View, edit, and delete expenses for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {adminExpenses.length > 0 ? (
-                      <div className="space-y-3">
-                        {adminExpenses.map((expense) => (
-                          <div key={expense.id} className="p-4 border rounded-lg">
-                            {editingExpense?.id === expense.id ? (
-                              <div className="space-y-3">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  <div>
-                                    <Label>Amount (৳)</Label>
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingExpense.amount}
-                                      onChange={(e) => setEditingExpense({
-                                        ...editingExpense,
-                                        amount: parseFloat(e.target.value) || 0
-                                      })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>Description</Label>
-                                    <Input
-                                      value={editingExpense.description}
-                                      onChange={(e) => setEditingExpense({
-                                        ...editingExpense,
-                                        description: e.target.value
-                                      })}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button 
-                                    size="sm" 
-                                    onClick={() => handleUpdateExpense(expense.id, editingExpense.amount, editingExpense.description)}
-                                    disabled={loading}
-                                  >
-                                    Save Changes
-                                  </Button>
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => setEditingExpense(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
+                  {/* Member Summary */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg font-semibold">Member Summary</CardTitle>
+                      <CardDescription>
+                        Individual breakdown for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {adminData.members && adminData.members.length > 0 ? (
+                          adminData.members.map((member) => (
+                            <div key={`member-${member.id}`} className="p-4 border rounded-lg">
+                              <div className="flex justify-between items-start mb-3">
+                                <h3 className="font-semibold text-lg">{member.name}</h3>
+                                <Badge 
+                                  variant={member.balance >= 0 ? "default" : "destructive"}
+                                  className="ml-2"
+                                >
+                                  {member.balance >= 0 ? "Credit" : "Owes"} {formatCurrency(Math.abs(member.balance))}
+                                </Badge>
                               </div>
-                            ) : (
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <span className="font-semibold text-lg">{formatCurrency(expense.amount)}</span>
-                                    <Badge variant="outline">{expense.member_name}</Badge>
-                                  </div>
-                                  {expense.description && (
-                                    <p className="text-gray-600 mb-1">{expense.description}</p>
-                                  )}
-                                  <p className="text-xs text-gray-500">
-                                    {new Date(expense.created_at).toLocaleDateString()} at {new Date(expense.created_at).toLocaleTimeString()}
+                              
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <span className="text-gray-600">Expenses:</span>
+                                  <p className="font-medium">{formatCurrency(member.totalExpenses)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Meals:</span>
+                                  <p className="font-medium">{member.totalMeals}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Meal Cost:</span>
+                                  <p className="font-medium">{formatCurrency(member.mealCost)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600">Balance:</span>
+                                  <p className={`font-medium ${member.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {member.balance >= 0 ? '+' : ''}{formatCurrency(member.balance)}
                                   </p>
                                 </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setEditingExpense({
-                                      id: expense.id,
-                                      amount: expense.amount,
-                                      description: expense.description
-                                    })}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => handleDeleteExpense(expense.id)}
-                                    disabled={loading}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-gray-500 text-center py-4">No member data available for this month</p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-gray-500 text-center py-4">No expenses recorded for this month</p>
-                    )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Expense Management */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg font-semibold">Expense Management</CardTitle>
+                      <CardDescription>
+                        View, edit, and delete expenses for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {adminExpenses && adminExpenses.length > 0 ? (
+                        <div className="space-y-3">
+                          {adminExpenses.map((expense) => (
+                            <div key={`expense-${expense.id}`} className="p-4 border rounded-lg">
+                              {editingExpense?.id === expense.id ? (
+                                <div className="space-y-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                      <Label>Amount (৳)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={editingExpense.amount}
+                                        onChange={(e) => setEditingExpense({
+                                          ...editingExpense,
+                                          amount: parseFloat(e.target.value) || 0
+                                        })}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label>Description</Label>
+                                      <Input
+                                        value={editingExpense.description}
+                                        onChange={(e) => setEditingExpense({
+                                          ...editingExpense,
+                                          description: e.target.value
+                                        })}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      size="sm" 
+                                      onClick={() => handleUpdateExpense(expense.id, editingExpense.amount, editingExpense.description)}
+                                      disabled={loading}
+                                    >
+                                      Save Changes
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => setEditingExpense(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-3 mb-2">
+                                      <span className="font-semibold text-lg">{formatCurrency(expense.amount)}</span>
+                                      <Badge variant="outline">{expense.member_name}</Badge>
+                                    </div>
+                                    {expense.description && (
+                                      <p className="text-gray-600 mb-1">{expense.description}</p>
+                                    )}
+                                    <p className="text-xs text-gray-500">
+                                      {new Date(expense.created_at).toLocaleDateString()} at {new Date(expense.created_at).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setEditingExpense({
+                                        id: expense.id,
+                                        amount: expense.amount,
+                                        description: expense.description
+                                      })}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteExpense(expense.id)}
+                                      disabled={loading}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-center py-4">No expenses recorded for this month</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              ) : (
+                <Card>
+                  <CardContent className="text-center py-8">
+                    <p className="text-gray-500">No data available for {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
                   </CardContent>
                 </Card>
               )}
